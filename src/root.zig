@@ -47,3 +47,35 @@ pub const Allocator = struct {
         c.vmaDestroyAllocator(self.handle);
     }
 };
+
+pub const Buffer = struct {
+    handle: c.VkBuffer,
+    allocation: c.VmaAllocation,
+    size: usize,
+
+    pub fn create(self: *const Allocator, buffer_create_info: anytype, required_flags: u32) !Buffer {
+        var alloc_create_info = std.mem.zeroes(c.VmaAllocationCreateInfo);
+        alloc_create_info.requiredFlags = required_flags;
+        var buffer: c.VkBuffer = undefined;
+        var allocation: c.VmaAllocation = undefined;
+        const result = c.vmaCreateBuffer(self.handle, @ptrCast(buffer_create_info), &alloc_create_info, &buffer, &allocation, null);
+        if (result != c.VK_SUCCESS) return error.VmaBufferCreationFailed;
+        return Buffer{ .handle = buffer, .allocation = allocation, .size = buffer_create_info.size };
+    }
+
+    pub fn destroy(self: *const Buffer, allocator: *const Allocator) void {
+        c.vmaDestroyBuffer(allocator.handle, self.handle, self.allocation);
+    }
+
+    pub fn map(self: *const Buffer, allocator: *const Allocator) ![]u8 {
+        var data: ?*anyopaque = null;
+        const result = c.vmaMapMemory(allocator.handle, self.allocation, &data);
+        if (result != c.VK_SUCCESS) return error.VmaBufferMappingFailed;
+        const ptr: [*]u8 = @ptrCast(data.?);
+        return ptr[0..self.size];
+    }
+
+    pub fn unmap(self: *const Buffer, allocator: *const Allocator) void {
+        c.vmaUnmapMemory(allocator.handle, self.allocation);
+    }
+};
