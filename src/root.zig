@@ -24,7 +24,7 @@ pub const Allocator = struct {
         api_version: u32,
     };
 
-    pub fn create(opts: Options) !Allocator {
+    pub fn init(opts: Options) !Allocator {
         var vulkan_functions = std.mem.zeroes(c.VmaVulkanFunctions);
         vulkan_functions.vkGetInstanceProcAddr = @ptrCast(opts.get_instance_proc_addr);
         vulkan_functions.vkGetDeviceProcAddr = @ptrCast(opts.get_device_proc_addr);
@@ -45,7 +45,7 @@ pub const Allocator = struct {
         return Allocator{ .handle = vma };
     }
 
-    pub fn destroy(self: *const Allocator) void {
+    pub fn deinit(self: *const Allocator) void {
         c.vmaDestroyAllocator(self.handle);
     }
 };
@@ -55,7 +55,7 @@ pub const Buffer = struct {
     allocation: c.VmaAllocation,
     size: usize,
 
-    pub fn create(self: *const Allocator, buffer_create_info: anytype, create_flags: AllocationCreateFlags, usage: MemoryUsage) !Buffer {
+    pub fn init(self: *const Allocator, buffer_create_info: anytype, create_flags: AllocationCreateFlags, usage: MemoryUsage) !Buffer {
         var alloc_create_info = std.mem.zeroes(c.VmaAllocationCreateInfo);
         alloc_create_info.flags = @bitCast(create_flags);
         alloc_create_info.usage = @bitCast(@intFromEnum(usage));
@@ -68,7 +68,7 @@ pub const Buffer = struct {
         return Buffer{ .handle = buffer, .allocation = allocation, .size = buffer_create_info.size };
     }
 
-    pub fn destroy(self: *const Buffer, allocator: *const Allocator) void {
+    pub fn deinit(self: *const Buffer, allocator: *const Allocator) void {
         c.vmaDestroyBuffer(allocator.handle, self.handle, self.allocation);
     }
 
