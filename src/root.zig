@@ -55,13 +55,20 @@ pub const Buffer = struct {
     allocation: c.VmaAllocation,
     size: usize,
 
-    pub fn init(self: *const Allocator, buffer_create_info: anytype, create_flags: AllocationCreateFlags, usage: MemoryUsage) !Buffer {
+    pub fn init(allocator: *const Allocator, buffer_create_info: anytype, create_flags: AllocationCreateFlags, usage: MemoryUsage) !Buffer {
         var alloc_create_info = std.mem.zeroes(c.VmaAllocationCreateInfo);
         alloc_create_info.flags = @bitCast(create_flags);
         alloc_create_info.usage = @bitCast(@intFromEnum(usage));
         var buffer: c.VkBuffer = undefined;
         var allocation: c.VmaAllocation = undefined;
-        const result = c.vmaCreateBuffer(self.handle, @ptrCast(buffer_create_info), &alloc_create_info, &buffer, &allocation, null);
+        const result = c.vmaCreateBuffer(
+            allocator.handle,
+            @ptrCast(buffer_create_info),
+            &alloc_create_info,
+            &buffer,
+            &allocation,
+            null,
+        );
         if (result != c.VK_SUCCESS) {
             return error.VmaBufferCreationFailed;
         }
@@ -84,6 +91,13 @@ pub const Buffer = struct {
 
     pub fn unmap(self: *const Buffer, allocator: *const Allocator) void {
         c.vmaUnmapMemory(allocator.handle, self.allocation);
+    }
+
+    pub fn invalidate(self: *const Buffer, allocator: *const Allocator) !void {
+        const result = c.vmaInvalidateAllocation(allocator.handle, self.allocation, 0, self.size);
+        if (result != c.VK_SUCCESS) {
+            return error.VmaBufferInvalidationFailed;
+        }
     }
 };
 
@@ -168,4 +182,59 @@ pub const AllocationCreateFlags = packed struct(u32) {
     _reserved_bit_29: bool = false,
     _reserved_bit_30: bool = false,
     _reserved_bit_31: bool = false,
+};
+
+pub const Image = struct {
+    handle: c.VkImage,
+    allocation: c.VmaAllocation,
+
+    pub fn init(
+        allocator: *const Allocator,
+        image_create_info: anytype,
+        create_flags: AllocationCreateFlags,
+        memory_usage: MemoryUsage,
+    ) !Image {
+        var alloc_create_info = std.mem.zeroes(c.VmaAllocationCreateInfo);
+        alloc_create_info.flags = @bitCast(create_flags);
+        alloc_create_info.usage = @bitCast(@intFromEnum(memory_usage));
+        var handle: c.VkImage = undefined;
+        var allocation: c.VmaAllocation = undefined;
+        const result = c.vmaCreateImage(
+            allocator.handle,
+            @ptrCast(image_create_info),
+            &alloc_create_info,
+            &handle,
+            &allocation,
+            null,
+        );
+        if (result != c.VK_SUCCESS) {
+            return error.VmaImageCreationFailed;
+        }
+        return Image{ .handle = handle, .allocation = allocation };
+    }
+
+    pub fn deinit(self: *const Image, allocator: *const Allocator) void {
+        c.vmaDestroyImage(allocator.handle, self.handle, self.allocation);
+    }
+
+    pub fn map(self: *const Image, allocator: *const Allocator, size: usize) ![]u8 {
+        var data: ?*anyopaque = null;
+        const result = c.vmaMapMemory(allocator.handle, self.allocation, &data);
+        if (result != c.VK_SUCCESS) {
+            return error.VmaImageMappingFailed;
+        }
+        const ptr: [*]u8 = @ptrCast(data.?);
+        return ptr[0..size];
+    }
+
+    pub fn unmap(self: *const Image, allocator: *const Allocator) void {
+        c.vmaUnmapMemory(allocator.handle, self.allocation);
+    }
+
+    pub fn invalidate(self: *const Image, allocator: *const Allocator, size: usize) !void {
+        const result = c.vmaInvalidateAllocation(allocator.handle, self.allocation, 0, size);
+        if (result != c.VK_SUCCESS) {
+            return error.VmaImageInvalidationFailed;
+        }
+    }
 };
