@@ -89,6 +89,16 @@ pub const Buffer = struct {
         return ptr[0..self.size];
     }
 
+    pub fn mapAligned(self: *const Buffer, allocator: *const Allocator, comptime T: type) ![]T {
+        var data: ?*anyopaque = null;
+        const result = c.vmaMapMemory(allocator.handle, self.allocation, &data);
+        if (result != c.VK_SUCCESS) {
+            return error.VmaBufferMappingFailed;
+        }
+        const ptr: [*]T = @ptrCast(@alignCast(data.?));
+        return ptr[0..(self.size / @sizeOf(T))];
+    }
+
     pub fn unmap(self: *const Buffer, allocator: *const Allocator) void {
         c.vmaUnmapMemory(allocator.handle, self.allocation);
     }
